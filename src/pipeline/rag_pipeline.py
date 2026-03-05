@@ -21,6 +21,9 @@ def run_rag_pipeline(pdf_path, query):
 
     results = retriever.invoke(query)
 
+    if not results:
+        return "NOT FOUND IN CONTEXT"
+
     context = "\n".join([doc.page_content for doc in results])
 
     llm = load_llm()
@@ -28,5 +31,15 @@ def run_rag_pipeline(pdf_path, query):
     prompt = build_prompt(context, query)
 
     response = llm.invoke(prompt)
+
+    # The model returns the full prompt + generated text; extract only the assistant's reply.
+    assistant_tag = "<|im_start|>assistant\n"
+    if assistant_tag in response:
+        response = response.split(assistant_tag)[-1].strip()
+
+    # Normalize any "not found" variant the model produces into the exact expected string.
+    not_found_phrases = ["not found in context", "not in the context", "not mentioned in the context", "cannot be found in the context"]
+    if any(phrase in response.lower() for phrase in not_found_phrases):
+        return "NOT FOUND IN CONTEXT"
 
     return response
